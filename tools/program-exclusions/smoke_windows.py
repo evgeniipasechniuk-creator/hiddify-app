@@ -67,10 +67,19 @@ def launch_and_check(target: Path, log: Path) -> dict:
         wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t),
     ]
     user32.SendMessageTimeoutW.restype = wintypes.LPARAM
+    essential = {
+        'PATH', 'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'COMSPEC', 'APPDATA',
+        'LOCALAPPDATA', 'PROGRAMDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)',
+        'COMMONPROGRAMFILES', 'COMMONPROGRAMFILES(X86)', 'TEMP', 'TMP',
+        'USERPROFILE', 'USERNAME', 'USERDOMAIN', 'HOMEDRIVE', 'HOMEPATH',
+        'PATHEXT', 'PROCESSOR_ARCHITECTURE', 'OS', 'NUMBER_OF_PROCESSORS',
+    }
+    # The tested app receives Windows essentials, not CI credentials or tokens.
+    app_env = {key: value for key, value in os.environ.items() if key.upper() in essential}
     with log.open('wb') as output:
         process = subprocess.Popen(
             [str(target / 'Hiddify.exe')], cwd=target,
-            stdout=output, stderr=subprocess.STDOUT,
+            stdout=output, stderr=subprocess.STDOUT, env=app_env,
         )
         try:
             deadline = time.monotonic() + 60

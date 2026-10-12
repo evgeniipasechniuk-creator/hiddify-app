@@ -1,0 +1,33 @@
+name: Diagnose Windows startup
+
+on:
+  push:
+    branches: [program-exclusions-startup-diagnostics]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  startup-comparison:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: exclusions-native
+          run-id: 38246964450
+          github-token: ${{ github.token }}
+          path: native
+      - name: Compare original and rebuilt core in ASCII and Cyrillic paths
+        run: python tools/program-exclusions/diagnose_startup.py native/hiddify-core.dll startup-diagnostics
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Hiddify-startup-diagnostics
+          path: startup-diagnostics/
+          retention-days: 7
