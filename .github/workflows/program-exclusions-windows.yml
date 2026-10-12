@@ -1,0 +1,115 @@
+name: Windows application exclusions
+
+on:
+  push:
+    branches: [program-exclusions-v4.0.4]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+  DART_SUPPRESS_ANALYTICS: 'true'
+
+jobs:
+  native-core:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.6'
+          cache: false
+      - name: Install Windows cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64-posix
+      - name: Get the exact core version and apply reviewed changes
+        run: |
+          git config --global url."https://github.com/".insteadOf 'git@github.com:'
+          git clone --depth 1 --branch v4.0.4 https://github.com/hiddify/hiddify-core.git core-build
+          git -C core-build submodule update --init --recursive --depth 1
+          python3 tools/program-exclusions/apply_core_overlay.py core-build
+      - name: Check routing rules
+        working-directory: core-build
+        run: go test -p 3 -v -tags with_purego ./v2/config
+      - name: Build Windows core and its native tests
+        working-directory: core-build
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CC: x86_64-w64-mingw32-gcc-posix
+        run: |
+          mkdir -p ../native
+          CGO_ENABLED=1 go build -p 3 -trimpath -ldflags='-w -s -checklinkname=0 -buildid= -X github.com/hiddify/hiddify-core/v2/hcommon/constants.Version=4.0.4+app-exclusions.1' -buildmode=c-shared -tags=with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api,with_grpc,with_awg,tfogo_checklinkname0,with_naive_outbound,with_conntrack,with_purego -o ../native/hiddify-core.dll ./platform/desktop
+          CGO_ENABLED=0 go test -c -tags with_purego -o ../native/program_exclusions_tests.exe ./v2/config
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exclusions-native
+          path: native/
+          retention-days: 14
+
+  windows-app:
+    needs: native-core
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: subosito/flutter-action@v2.21.0
+        with:
+          flutter-version: '3.38.5'
+          channel: stable
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: exclusions-native
+          path: native
+      - name: Run routing tests on Windows
+        shell: pwsh
+        run: |
+          & .\native\program_exclusions_tests.exe -test.v
+          if ($LASTEXITCODE -ne 0) { throw 'Windows routing tests failed' }
+      - name: Obtain and verify original support binaries
+        run: python tools/program-exclusions/prepare_windows_support.py native/hiddify-core.dll
+      - name: Generate application sources
+        shell: pwsh
+        run: |
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency resolution failed' }
+          dart run build_runner build --delete-conflicting-outputs
+          if ($LASTEXITCODE -ne 0) { throw 'Code generation failed' }
+      - name: Verify exclusions UI and settings
+        shell: pwsh
+        run: |
+          dart analyze lib/features/program_exclusions test/program_exclusions_test.dart test/program_exclusions_widget_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'New code analysis failed' }
+          flutter test --no-pub test/program_exclusions_test.dart test/program_exclusions_widget_test.dart
+          if ($LASTEXITCODE -ne 0) { throw 'Windows UI or persistence tests failed' }
+      - name: Build the Windows application
+        shell: pwsh
+        run: |
+          flutter build windows --release --target lib/main_prod.dart --no-pub
+          if ($LASTEXITCODE -ne 0) { throw 'Windows release build failed' }
+          python tools/program-exclusions/check_runtime.py build/windows/x64/runner/Release native/hiddify-core.dll
+          if ($LASTEXITCODE -ne 0) { throw 'Runtime validation failed' }
+      - name: Package installer
+        shell: pwsh
+        run: |
+          $compiler = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (!(Test-Path $compiler)) { throw 'Inno Setup 6 compiler is missing on the Windows runner' }
+          & $compiler tools/program-exclusions/setup.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          Copy-Item LICENSE.md dist/HIDDIFY_APP_LICENSE.md
+          Copy-Item PROGRAM_EXCLUSIONS_README.md dist/README.md
+          Get-FileHash dist/*.exe -Algorithm SHA256 | Format-List | Out-File dist/SHA256.txt -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hiddify-Application-Exclusions-1-Windows
+          path: dist/
+          retention-days: 30

@@ -7,6 +7,7 @@ import 'package:hiddify/core/router/dialog/dialog_notifier.dart';
 import 'package:hiddify/features/per_app_proxy/model/per_app_proxy_mode.dart';
 import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
+import 'package:hiddify/features/program_exclusions/program_exclusions_page.dart';
 import 'package:hiddify/features/settings/widget/preference_tile.dart';
 import 'package:hiddify/singbox/model/singbox_config_enum.dart';
 import 'package:hiddify/utils/platform_utils.dart';
@@ -22,6 +23,13 @@ class RouteOptionsPage extends HookConsumerWidget {
       appBar: AppBar(title: Text(t.pages.settings.routing.title)),
       body: ListView(
         children: [
+          if (PlatformUtils.isWindows)
+            ListTile(
+              title: Text(programExclusionsTitle(context)),
+              leading: const Icon(Icons.apps_rounded),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => context.goNamed('programExclusions'),
+            ),
           if (PlatformUtils.isAndroid)
             ListTile(
               title: Text(t.pages.settings.routing.perAppProxy.title),

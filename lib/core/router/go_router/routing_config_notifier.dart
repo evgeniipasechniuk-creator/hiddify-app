@@ -14,6 +14,7 @@ import 'package:hiddify/features/per_app_proxy/overview/per_app_proxy_page.dart'
 import 'package:hiddify/features/profile/details/profile_details_page.dart';
 import 'package:hiddify/features/profile/notifier/active_profile_notifier.dart';
 import 'package:hiddify/features/profile/overview/profiles_page.dart';
+import 'package:hiddify/features/program_exclusions/program_exclusions_page.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_page.dart';
 import 'package:hiddify/features/settings/overview/sections/dns_options_page.dart';
 import 'package:hiddify/features/settings/overview/sections/general_page.dart';
@@ -162,6 +163,14 @@ class RoutingConfigNotifier extends _$RoutingConfigNotifier {
                     ),
                   ),
                   routes: <GoRoute>[
+                    if (PlatformUtils.isWindows)
+                      GoRoute(
+                        name: 'programExclusions',
+                        path: '/program-exclusions',
+                        pageBuilder: (_, state) => customTransition(
+                          TransitionType.slide, state.pageKey, const ProgramExclusionsPage(),
+                        ),
+                      ),
                     GoRoute(
                       name: 'general',
                       path: '/general',

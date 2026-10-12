@@ -1,0 +1,25 @@
+{
+  "base_revision": "cb21a8a0d84a42bcdea8d51336405f195a07c7a5",
+  "files": [
+    {
+      "path": "v2/config/builder.go",
+      "before_sha256": "56d5edb8676d9ffe348ba2672e936a2ec49b3baaa7aad1a99e9ea1c0c9fc9607",
+      "after_sha256": "5d02ae1efb3c241c4f6f8bd4ec3a9f44d792035889a604d4deb28d266dcb5296"
+    },
+    {
+      "path": "v2/config/hiddify_option.go",
+      "before_sha256": "84a5ae600cbb345346eef2e9bee367f5eb83497afda3877e4476a690b9e1d5af",
+      "after_sha256": "fc47a67d2f8740586aa7c534ab67bd6a2e1b401dd03bdc1cc24902dd7717882f"
+    },
+    {
+      "path": "v2/config/program_exclusions.go",
+      "before_sha256": null,
+      "after_sha256": "75a873b3bb990a5707618cfbc53986674f1bbea8b25c8bc72215c661ae250c37"
+    },
+    {
+      "path": "v2/config/program_exclusions_test.go",
+      "before_sha256": null,
+      "after_sha256": "cad8d46cf8fe2bceb3d94fd37c886d98c58190c3b507610c1c493411f609cf59"
+    }
+  ]
+}

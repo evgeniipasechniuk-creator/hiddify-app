@@ -10,6 +10,7 @@ import 'package:hiddify/core/notification/in_app_notification_controller.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/features/connection/model/connection_failure.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
+import 'package:hiddify/features/program_exclusions/program_exclusions_controller.dart';
 import 'package:hiddify/hiddifycore/core_interface/core_interface.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcommon/common.pb.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
@@ -115,14 +116,19 @@ class HiddifyCoreService with InfraLogger {
   TaskEither<String, Unit> changeOptions(SingboxConfigOption options) {
     return TaskEither(() async {
       loggy.debug("changing options");
+      final settings = options.toJson();
+      if (PlatformUtils.isWindows) {
+        final programs = await ref.read(programExclusionsProvider.future);
+        settings['direct-process-paths'] = programs.where((entry) => entry.enabled).map((entry) => entry.path).toList();
+      }
       // latestOptions = options;
       try {
         final res = await core.fgClient.changeHiddifySettings(
-          ChangeHiddifySettingsRequest(hiddifySettingsJson: jsonEncode(options.toJson())),
+          ChangeHiddifySettingsRequest(hiddifySettingsJson: jsonEncode(settings)),
         );
         if (res.messageType != MessageType.EMPTY) return left("${res.messageType} ${res.message}");
         await core.bgClient.changeHiddifySettings(
-          ChangeHiddifySettingsRequest(hiddifySettingsJson: jsonEncode(options.toJson())),
+          ChangeHiddifySettingsRequest(hiddifySettingsJson: jsonEncode(settings)),
         );
       } on GrpcError catch (e) {
         if (e.code == StatusCode.unavailable) {
@@ -225,9 +231,7 @@ class HiddifyCoreService with InfraLogger {
         if (res.messageType != MessageType.EMPTY) return left("${res.messageType} ${res.message}");
       } on GrpcError catch (e) {
         loggy.error("failed to restart bg core: $e");
-        if (e.code == StatusCode.unknown && !(e.message?.contains("HTTP/2 error") ?? false)) {
-          return left("${e.message}");
-        }
+        return left(e.message ?? e.codeName);
       }
 
       return right(unit);
