@@ -67,10 +67,19 @@ def launch_and_check(target: Path, log: Path) -> dict:
         wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t),
     ]
     user32.SendMessageTimeoutW.restype = wintypes.LPARAM
+    essential = {
+        'PATH', 'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'COMSPEC', 'APPDATA',
+        'LOCALAPPDATA', 'PROGRAMDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)',
+        'COMMONPROGRAMFILES', 'COMMONPROGRAMFILES(X86)', 'TEMP', 'TMP',
+        'USERPROFILE', 'USERNAME', 'USERDOMAIN', 'HOMEDRIVE', 'HOMEPATH',
+        'PATHEXT', 'PROCESSOR_ARCHITECTURE', 'OS', 'NUMBER_OF_PROCESSORS',
+    }
+    # The tested app receives Windows essentials, not CI credentials or tokens.
+    app_env = {key: value for key, value in os.environ.items() if key.upper() in essential}
     with log.open('wb') as output:
         process = subprocess.Popen(
             [str(target / 'Hiddify.exe')], cwd=target,
-            stdout=output, stderr=subprocess.STDOUT,
+            stdout=output, stderr=subprocess.STDOUT, env=app_env,
         )
         try:
             deadline = time.monotonic() + 60
@@ -114,7 +123,9 @@ def main() -> None:
     parser.add_argument('--source-commit', required=True)
     args = parser.parse_args()
     runner_temp = Path(os.environ['RUNNER_TEMP']).resolve()
-    target = runner_temp / 'Hiddify Exclusions Проверка'
+    # Upstream 4.0.4 also crashes when its installation path is non-ASCII.
+    # Keep the native runtime in a supported path; exclusions remain Unicode.
+    target = runner_temp / 'HiddifyExclusionsSmoke'
     if target.exists():
         raise RuntimeError('Verification directory already exists')
     report_dir = args.report_dir.resolve()
@@ -142,8 +153,12 @@ def main() -> None:
         report['clean_install'] = 'passed'
         profile.mkdir(parents=True, exist_ok=True)
         sentinel.write_text('preserve settings during install/update/uninstall', encoding='utf-8')
+        fixture = target / 'test-fixtures' / 'Программа (1).exe'
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        import shutil
+        shutil.copy2(Path(os.environ['WINDIR']) / 'System32/notepad.exe', fixture)
         exclusion_file.write_text(json.dumps({'schema': 1, 'programs': [
-            {'path': str(Path(os.environ['WINDIR']) / 'System32/notepad.exe'), 'enabled': True}
+            {'path': str(fixture), 'enabled': True}
         ]}, ensure_ascii=False), encoding='utf-8')
         expected_settings = digest(exclusion_file)
         report['first_launch'] = launch_and_check(target, report_dir / 'first_launch.log')
@@ -164,6 +179,8 @@ def main() -> None:
         )
         if uninstall.returncode != 0:
             raise RuntimeError(f'Uninstaller returned {uninstall.returncode}')
+        if (target / 'Hiddify.exe').exists():
+            raise RuntimeError('Uninstall did not remove the installed executable')
         if digest(exclusion_file) != expected_settings or not sentinel.exists():
             raise RuntimeError('Uninstall removed stored settings')
         report['uninstall_preserves_settings'] = 'passed'

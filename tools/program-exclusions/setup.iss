@@ -37,6 +37,19 @@ Name: "{autodesktop}\Hiddify"; Filename: "{app}\Hiddify.exe"
 Filename: "{app}\Hiddify.exe"; Description: "{cm:LaunchProgram,Hiddify}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [Code]
+function HasNonAscii(Value: String): Boolean;
+var
+  Index: Integer;
+begin
+  Result := False;
+  for Index := 1 to Length(Value) do begin
+    if Ord(Value[Index]) > 127 then begin
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
 procedure CopyBackupTree(SourceDir, TargetDir: String);
 var
   Item: TFindRec;
@@ -71,6 +84,10 @@ var
 begin
   Result := '';
   Target := ExpandConstant('{app}');
+  if HasNonAscii(Target) then begin
+    Result := 'Hiddify 4.0.4 requires an installation path without Cyrillic or other non-ASCII characters. Use C:\Program Files\Hiddify. Profiles in AppData are retained.';
+    Exit;
+  end;
   if FileExists(Target + '\Hiddify.exe') then begin
     if (not GetVersionNumbersString(Target + '\Hiddify.exe', Version)) or
        (Copy(Version, 1, 6) <> '4.0.4.') then begin
