@@ -73,7 +73,7 @@ jobs:
       - name: Run routing tests on Windows
         shell: pwsh
         run: |
-          & .\native\program_exclusions_tests.exe -test.v
+          & .\native\program_exclusions_tests.exe '-test.v=true'
           if ($LASTEXITCODE -ne 0) { throw 'Windows routing tests failed' }
       - name: Obtain and verify original support binaries
         run: python tools/program-exclusions/prepare_windows_support.py native/hiddify-core.dll
@@ -108,6 +108,18 @@ jobs:
           Copy-Item LICENSE.md dist/HIDDIFY_APP_LICENSE.md
           Copy-Item PROGRAM_EXCLUSIONS_README.md dist/README.md
           Get-FileHash dist/*.exe -Algorithm SHA256 | Format-List | Out-File dist/SHA256.txt -Encoding utf8
+      - name: Verify installation, native window and update preservation
+        shell: pwsh
+        run: |
+          python tools/program-exclusions/smoke_windows.py dist/Hiddify_Program_Exclusions_Setup_1.exe native/hiddify-core.dll dist/windows-verification --source-commit "$env:GITHUB_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows installation or native window verification failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Windows-install-verification
+          path: dist/windows-verification/
+          if-no-files-found: ignore
+          retention-days: 30
       - uses: actions/upload-artifact@v4
         with:
           name: Hiddify-Application-Exclusions-1-Windows
